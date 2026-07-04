@@ -138,18 +138,36 @@ Return JSON only with this schema:
   "max_price": number or null,
   "min_rating_pct": number or null,
   "min_review_count": number or null,
-  "genres": ["Genre", ...] or [],
+  "genres": ["genre", ...] or [],
   "tags": ["tag", ...] or [],
   "semantic_query": "short phrase for similarity search"
 }}
 
 Rules:
-- max_price: cheap/free/under $X requests; 0 for free
-- min_rating_pct: highly rated / X%+ positive requests
-- min_review_count: set when user wants popular/well-reviewed games; else null
-- genres: Steam genres (action, rpg, indie, ...) — use lowercase
-- tags: gameplay tags (roguelike, open world, story rich, ...) — use lowercase
-- semantic_query: rewrite the recommendation intent for vector search
+- Use null for any field NOT explicitly mentioned in the user message
+- Do NOT guess or infer filters the user did not ask for
+- max_price: set only when price is mentioned
+  - "free" or "free to play" → 0
+  - "under $15" / "below $20" → that number
+  - "cheap" alone → null (not 0)
+- min_rating_pct: set only when user mentions ratings, % positive, or "highly rated"
+  - Do NOT set min_rating_pct for price-only or genre-only requests
+- min_review_count: set only when user mentions popularity or review volume
+- genres: Steam store genres only — action, adventure, casual, indie, rpg, simulation, strategy, sports, racing
+- tags: gameplay/style tags — roguelike, story rich, open world, cozy, survival, metroidvania, souls-like
+  - roguelike, story rich, cozy, etc. go in tags, NEVER in genres
+- semantic_query: rewrite the recommendation intent for vector search (drop price/rating constraints)
+- All genre and tag strings must be lowercase
+
+Examples:
+User: free roguelike
+{{"max_price": 0, "min_rating_pct": null, "min_review_count": null, "genres": [], "tags": ["roguelike"], "semantic_query": "roguelike games"}}
+
+User: cheap indie roguelike under $15
+{{"max_price": 15, "min_rating_pct": null, "min_review_count": null, "genres": ["indie"], "tags": ["roguelike"], "semantic_query": "indie roguelike games"}}
+
+User: story rich RPG with 90% positive reviews
+{{"max_price": null, "min_rating_pct": 90, "min_review_count": null, "genres": ["rpg"], "tags": ["story rich"], "semantic_query": "story rich RPG"}}
 
 User message:
 {query}
