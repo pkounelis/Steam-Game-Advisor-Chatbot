@@ -101,20 +101,14 @@ def load_games_csv(csv_path: Path, *, limit: int | None = None) -> pd.DataFrame:
 
 
 def build_game_text(row: pd.Series) -> str:
-    """Combine game fields into a single searchable document."""
-    parts = [
-        f"Game: {_safe_str(row.get('name'))}",
-        f"Genres: {_safe_str(row.get('genres'))}",
-        f"Tags: {_safe_str(row.get('tags'))}",
-        f"Description: {_safe_str(row.get('about_the_game'))}",
-    ]
-    return "\n".join(part for part in parts if not part.endswith(": "))
+    """Return description-only text for embedding; structured fields live in metadata."""
+    return _safe_str(row.get("about_the_game"))
 
 
 def _parse_csv_list(value: object) -> list[str]:
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return []
-    return [part.strip() for part in str(value).split(",") if part.strip()]
+    return [part.strip().lower() for part in str(value).split(",") if part.strip()]
 
 
 def _review_metrics(row: pd.Series) -> tuple[float, int]:

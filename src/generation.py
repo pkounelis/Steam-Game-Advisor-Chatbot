@@ -67,8 +67,8 @@ def _as_str_list(value: object) -> list[str]:
     if not value:
         return []
     if isinstance(value, str):
-        return [part.strip() for part in value.split(",") if part.strip()]
-    return [str(item).strip() for item in value if str(item).strip()]
+        return [part.strip().lower() for part in value.split(",") if part.strip()]
+    return [str(item).strip().lower() for item in value if str(item).strip()]
 
 
 def _normalize_params(data: dict, fallback_query: str) -> GameQueryParams:
@@ -146,8 +146,8 @@ Rules:
 - max_price: cheap/free/under $X requests; 0 for free
 - min_rating_pct: highly rated / X%+ positive requests
 - min_review_count: set when user wants popular/well-reviewed games; else null
-- genres: Steam genres (Action, RPG, Indie, ...)
-- tags: gameplay tags (Roguelike, Open World, ...)
+- genres: Steam genres (action, rpg, indie, ...) — use lowercase
+- tags: gameplay tags (roguelike, open world, story rich, ...) — use lowercase
 - semantic_query: rewrite the recommendation intent for vector search
 
 User message:
