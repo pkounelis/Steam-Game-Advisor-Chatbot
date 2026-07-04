@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project-specific
+vector_db/
+data_source/steam_games.csv
+data_source/cache/

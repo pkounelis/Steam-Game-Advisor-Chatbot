@@ -1,1 +1,3 @@
-# Steam-Game-Advisor-Chatbot
+# Steam Game Advisor Chatbot
+
+**Author:** Panagiotis Kounelis
