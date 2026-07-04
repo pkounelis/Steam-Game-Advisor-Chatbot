@@ -100,6 +100,14 @@ def load_games_csv(csv_path: Path, *, limit: int | None = None) -> pd.DataFrame:
     return df
 
 
+def get_description_for_app_id(games_df: pd.DataFrame, app_id: str) -> str:
+    """Return the full game description from the CSV for RAG context."""
+    rows = games_df.loc[games_df["app_id"] == str(app_id), "about_the_game"]
+    if rows.empty:
+        return ""
+    return _safe_str(rows.iloc[0])
+
+
 def build_game_text(row: pd.Series) -> str:
     """Return description-only text for embedding; structured fields live in metadata."""
     return _safe_str(row.get("about_the_game"))

@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from transformers import pipeline
 
 from src.config import (
+    CONVERSATION_MEMORY_TURNS,
     GENERATION_MAX_NEW_TOKENS,
     LLM_MODEL_ID,
     PARSE_MAX_NEW_TOKENS,
@@ -162,14 +163,152 @@ JSON:"""
     return _normalize_params(data, query)
 
 
+@dataclass
+class ChatTurn:
+    role: str
+    content: str
+
+
+def trim_history(
+    history: list[ChatTurn],
+    max_turns: int = CONVERSATION_MEMORY_TURNS,
+) -> list[ChatTurn]:
+    """Keep the last N user/assistant turn pairs."""
+    return history[-(max_turns * 2) :]
+
+
+def format_history(history: list[ChatTurn]) -> str:
+    if not history:
+        return ""
+    lines = []
+    for turn in history:
+        label = "User" if turn.role == "user" else "Assistant"
+        lines.append(f"{label}: {turn.content}")
+    return "\n".join(lines)
+
+
+def _format_list_field(value: object) -> str:
+    if isinstance(value, list):
+        return ", ".join(str(item) for item in value)
+    return str(value or "")
+
+
+def build_context_from_chunks(chunks, games_df=None) -> str:
+    """Format retrieved games into a context block for the RAG prompt."""
+    from src.ingestion import get_description_for_app_id
+
+    blocks: list[str] = []
+    for index, chunk in enumerate(chunks, start=1):
+        meta = chunk.metadata
+        app_id = str(meta.get("app_id", ""))
+        name = meta.get("name", "?")
+        price = meta.get("price", "?")
+        rating = meta.get("rating_pct", "?")
+        description = chunk.text
+        if games_df is not None and app_id:
+            full_description = get_description_for_app_id(games_df, app_id)
+            if full_description:
+                description = full_description
+
+        blocks.append(
+            f"Game {index}: {name}\n"
+            f"Price: ${price} | Rating: {rating}% positive\n"
+            f"Genres: {_format_list_field(meta.get('genres'))}\n"
+            f"Tags: {_format_list_field(meta.get('tags'))}\n"
+            f"Description: {description}"
+        )
+    return "\n\n".join(blocks)
+
+
+def build_rag_prompt(
+    query: str,
+    chunks,
+    history: list[ChatTurn] | None = None,
+    *,
+    games_df=None,
+) -> str:
+    """Build a Steam advisor prompt with retrieved context and chat history."""
+    context = build_context_from_chunks(chunks, games_df)
+    history = trim_history(history or [])
+    history_block = format_history(history)
+
+    parts = [
+        "You are a helpful Steam game advisor. Recommend games from the context only.",
+        "If the context does not contain suitable games, say so briefly.",
+        "",
+    ]
+    if history_block:
+        parts.extend(["Previous conversation:", history_block, ""])
+    parts.extend(
+        [
+            "Context:",
+            context or "No matching games were found.",
+            "",
+            f"User: {query}",
+            "Assistant:",
+        ]
+    )
+    return "\n".join(parts)
+
+
+def answer_with_rag(
+    generator,
+    query: str,
+    chunks,
+    history: list[ChatTurn] | None = None,
+    *,
+    games_df=None,
+) -> str:
+    prompt = build_rag_prompt(query, chunks, history, games_df=games_df)
+    return generate_text(generator, prompt)
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Test LLM query parsing.")
-    parser.add_argument("query", help="Natural language game recommendation request")
+    import sys
+
+    if len(sys.argv) >= 2 and sys.argv[1] not in ("parse", "chat"):
+        sys.argv.insert(1, "parse")
+
+    parser = argparse.ArgumentParser(description="Gemma query parsing and RAG chat.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    parse_parser = subparsers.add_parser("parse", help="Test LLM query parsing")
+    parse_parser.add_argument(
+        "query", help="Natural language game recommendation request"
+    )
+
+    chat_parser = subparsers.add_parser(
+        "chat", help="Retrieve games and answer with RAG"
+    )
+    chat_parser.add_argument("query", help="User message")
+    chat_parser.add_argument(
+        "--mode",
+        choices=["llm", "none"],
+        default="llm",
+        help="Retrieval mode: llm (filtered) or none (baseline)",
+    )
+
     args = parser.parse_args()
 
+    if args.command == "parse":
+        generator = load_generator()
+        params = parse_query_with_llm(generator, args.query)
+        print(json.dumps(params.to_dict(), indent=2))
+        return
+
+    from src.ingestion import ensure_games_csv, load_games_csv
+    from src.retrieval import retrieve
+
     generator = load_generator()
-    params = parse_query_with_llm(generator, args.query)
-    print(json.dumps(params.to_dict(), indent=2))
+    games_df = load_games_csv(ensure_games_csv())
+    result = retrieve(args.query, filter_mode=args.mode, generator=generator)
+    answer = answer_with_rag(
+        generator,
+        args.query,
+        result.chunks,
+        games_df=games_df,
+    )
+    print("Answer:\n", answer)
 
 
 if __name__ == "__main__":
