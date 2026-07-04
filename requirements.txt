@@ -1,0 +1,5 @@
+chromadb>=1.5.0
+sentence-transformers
+langchain-text-splitters
+pandas
+tqdm
