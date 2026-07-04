@@ -3,3 +3,7 @@ sentence-transformers
 langchain-text-splitters
 pandas
 tqdm
+torch
+transformers
+accelerate
+python-dotenv

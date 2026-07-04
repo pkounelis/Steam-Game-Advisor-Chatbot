@@ -29,6 +29,11 @@ CHROMA_ADD_BATCH_SIZE = 256
 # Minimum reviews when filtering by rating_pct
 DEFAULT_MIN_REVIEW_COUNT = 50
 
+# Generation / query parsing
+LLM_MODEL_ID = "google/gemma-2-2b-it"
+GENERATION_MAX_NEW_TOKENS = 200
+PARSE_MAX_NEW_TOKENS = 120
+
 
 def get_device() -> str:
     """Return cuda, mps, or cpu depending on hardware availability."""
